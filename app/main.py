@@ -43,12 +43,21 @@ def home_page():
 
 @app.get("/products")
 def get_products():
+    for product in products:
+        product["status"] = get_stock_status(
+        product["stock"],
+        product["minimum_stock"]
+        )
     return products
 
 @app.get("/products/{product_id}")
-def get_product(product_id: int):
+def get_product_by_id(product_id: int):
     for product in products:
         if product["id"] == product_id:
+            product["status"] = get_stock_status(
+                product["stock"],
+                product["minimum_stock"]
+            )
             return product
         
     raise HTTPException(
@@ -59,7 +68,7 @@ def get_product(product_id: int):
 @app.post("/products", status_code=status.HTTP_201_CREATED)
 def create_product(product: ProductCreate):
     if products:
-        new_id = max(product["id"] for product in produts) + 1
+        new_id = max(product["id"] for product in products) + 1
     else:
         new_id = 1
 
@@ -101,3 +110,25 @@ def remove_product(product_id: int):
         status_code=404,
         detail="Product not found"
     )
+
+@app.get("/products/low-stock")
+def get_low_stock_products():
+    low_stock_products = []
+
+    for product in products:
+        if product["stock"] > 0 and product["stock"] <= product["minimum_stock"]:
+            return low_stock_products
+
+        low_stock_products.append(product)
+
+    return low_stock_products
+
+def get_stock_status(stock: int, minimum_stock: int) -> str:
+    if stock == 0:
+        status = "OUT OF STOCK"
+    elif stock <= minimum_stock:
+        status = "LOW STOCK"
+    else:
+        status = "IN STOCK"
+
+    return status
