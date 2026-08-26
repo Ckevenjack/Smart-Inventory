@@ -50,6 +50,67 @@ def get_products():
         )
     return products
 
+@app.get("/products/low-stock")
+def get_low_stock_products():
+    low_stock_products = []
+
+    for product in products:
+        if product["stock"] > 0 and product["stock"] <= product["minimum_stock"]:
+            low_stock_products.append(product)
+
+    return low_stock_products
+
+@app.get("/products/out-of-stock")
+def get_out_of_stock():
+    out_of_stock = []
+
+    for product in products:
+        if product["stock"] == 0:
+            out_of_stock.append(product)
+        
+    return out_of_stock
+
+@app.get("/products/search")
+def search_products(name: str):
+    product_name = []
+
+    for product in products:
+        if  name.lower() in product["name"].lower():
+            product_name.append(product)
+
+    return product_name
+
+@app.get("/products/category")
+def filter_by_category(category: str):
+    product_category = []
+
+    for product in products:
+        if category.lower() == product["category"].lower():
+            product_category.append(product)
+
+    return product_category
+
+@app.get("/stats")
+def get_stats():
+    low_stock_count = 0
+    out_of_stock_count = 0
+    inventory_value = 0
+
+    for product in products:
+        inventory_value += product["price"] * product["stock"]
+        
+        if product["stock"] == 0:
+            out_of_stock_count += 1
+        elif product["stock"] > 0 and product["stock"] <= product["minimum_stock"]:
+            low_stock_count += 1
+
+    return {
+        "total_products": len(products),
+        "low_stock": low_stock_count,
+        "out_of_stock": out_of_stock_count,
+        "inventory_value": inventory_value
+    }
+
 @app.get("/products/{product_id}")
 def get_product_by_id(product_id: int):
     for product in products:
@@ -111,17 +172,6 @@ def remove_product(product_id: int):
         detail="Product not found"
     )
 
-@app.get("/products/low-stock")
-def get_low_stock_products():
-    low_stock_products = []
-
-    for product in products:
-        if product["stock"] > 0 and product["stock"] <= product["minimum_stock"]:
-            return low_stock_products
-
-        low_stock_products.append(product)
-
-    return low_stock_products
 
 def get_stock_status(stock: int, minimum_stock: int) -> str:
     if stock == 0:
