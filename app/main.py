@@ -1,6 +1,11 @@
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, Depends
+from sqlalchemy.orm import Session
+
 from pydantic import BaseModel
 from typing import Optional
+
+from app.database import get_db
+from app.models.product import Product
 
 class ProductCreate(BaseModel):
     name: str
@@ -127,21 +132,25 @@ def get_product_by_id(product_id: int):
         )
 
 @app.post("/products", status_code=status.HTTP_201_CREATED)
-def create_product(product: ProductCreate):
+def create_product(
+    product: ProductCreate,
+    db: Session = Depends(get_db)):
+
     if products:
         new_id = max(product["id"] for product in products) + 1
     else:
         new_id = 1
 
-    new_product = {
-        "id": new_id,
-        "name": product.name,
-        "category": product.category,
-        "price": product.price,
-        "stock": product.stock,
-        "minimum_stock": product.minimum_stock
-    }
-    products.append(new_product)
+    new_product = Product(
+        name=product.name,
+        category=product.category,
+        price=product.price,
+        stock=product.stock,
+        minimum_stock=product.minimum_stock
+    )
+    db.add(new_product)
+    db.commit()
+    db.refresh(new_product)
 
     return new_product
 
