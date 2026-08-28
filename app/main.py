@@ -23,113 +23,118 @@ class ProductUpdate(BaseModel):
 
 app = FastAPI()
 
-products = [
-    {
-        "id": 1,
-        "name": "Keyboard",
-        "category": "Tech",
-        "price": 15,
-        "stock": 7,
-        "minimum_stock": 2
-    },
-    {
-        "id": 2,
-        "name": "Mouse",
-        "category": "Tech",
-        "price": 5,
-        "stock": 11,
-        "minimum_stock": 2
-    }
-]
-
 @app.get("/")
 def home_page():
     return {"message": "Smart Inventory API"}
 
 @app.get("/products")
-def get_products():
-    for product in products:
-        product["status"] = get_stock_status(
-        product["stock"],
-        product["minimum_stock"]
-        )
+def get_products(db: Session = Depends(get_db)):
+    products = db.query(Product).all()
+
     return products
 
 @app.get("/products/low-stock")
-def get_low_stock_products():
-    low_stock_products = []
+def get_low_stock_products(db: Session = Depends(get_db)):
 
-    for product in products:
-        if product["stock"] > 0 and product["stock"] <= product["minimum_stock"]:
-            low_stock_products.append(product)
+    low_stock_products = (
+        db.query(Product)
+        .filter(
+            Product.stock > 0,
+            Product.stock <= Product.minimum_stock
+        )
+        .all()
+    )
 
     return low_stock_products
 
 @app.get("/products/out-of-stock")
-def get_out_of_stock():
-    out_of_stock = []
+def get_out_of_stock(db: Session = Depends(get_db)):
 
-    for product in products:
-        if product["stock"] == 0:
-            out_of_stock.append(product)
-        
+    out_of_stock = (
+        db.query(Product)
+        .filter(Product.stock == 0)
+        .all()
+    )
+    
     return out_of_stock
 
 @app.get("/products/search")
-def search_products(name: str):
-    product_name = []
+def search_products(
+    name: str,
+    db: Session = Depends(get_db)):
 
-    for product in products:
-        if  name.lower() in product["name"].lower():
-            product_name.append(product)
+    product_name = (
+        db.query(Product)
+        .filter(Product.name.ilike(f"%{name}%"))
+        .all()
+    )
 
     return product_name
 
 @app.get("/products/category")
-def filter_by_category(category: str):
-    product_category = []
+def filter_by_category(
+    category: str,
+    db: Session = Depends(get_db)):
 
-    for product in products:
-        if category.lower() == product["category"].lower():
-            product_category.append(product)
+    product_category = (
+        db.query(Product)
+        .filter(Product.category.ilike(category))
+        .all()
+    )
 
     return product_category
 
 @app.get("/stats")
-def get_stats():
-    low_stock_count = 0
-    out_of_stock_count = 0
+def get_stats(db: Session = Depends(get_db)):
+
+    total_products = db.query(Product).count()
+
+    low_stock = (
+        db.query(Product)
+        .filter(
+            Product.stock > 0,
+            Product.stock <= Product.minimum_stock
+        )
+        .count()
+    )
+
+    out_of_stock = (
+        db.query(Product)
+        .filter(Product.stock == 0)
+        .count()
+    )
+
     inventory_value = 0
 
+    products = db.query(Product).all()
     for product in products:
-        inventory_value += product["price"] * product["stock"]
-        
-        if product["stock"] == 0:
-            out_of_stock_count += 1
-        elif product["stock"] > 0 and product["stock"] <= product["minimum_stock"]:
-            low_stock_count += 1
+        inventory_value += product.price * product.stock
 
     return {
-        "total_products": len(products),
-        "low_stock": low_stock_count,
-        "out_of_stock": out_of_stock_count,
+        "total_products": total_products,
+        "low_stock": low_stock,
+        "out_of_stock": out_of_stock,
         "inventory_value": inventory_value
     }
 
 @app.get("/products/{product_id}")
-def get_product_by_id(product_id: int):
-    for product in products:
-        if product["id"] == product_id:
-            product["status"] = get_stock_status(
-                product["stock"],
-                product["minimum_stock"]
+def get_product_by_id(
+    product_id: int,
+    db: Session = Depends(get_db)):
+
+    product = (
+        db.query(Product)
+        .filter(Product.id == product_id)
+        .first()
+    )
+
+    if product is None:
+        raise HTTPException(
+                status_code=404,
+                detail="Product not found"
             )
-            return product
-        
-    raise HTTPException(
-            status_code=404,
-            detail="Product not found"
-        )
+
+    return product
 
 @app.post("/products", status_code=status.HTTP_201_CREATED)
 def create_product(
@@ -155,31 +160,54 @@ def create_product(
     return new_product
 
 @app.patch("/products/{product_id}")
-def update_product(product_id: int, product_update: ProductUpdate):
-    for product in products:
-        if product["id"] == product_id:
-            update_data = product_update.model_dump(exclude_unset=True)
-
-            product.update(update_data)
-
-            return product
+def update_product(
+    product_id: int,
+    product_update: ProductUpdate,
+    db: Session = Depends(get_db)):
         
-    raise HTTPException(
-        status_code=404,
-        detail="Product not found"
+    product = (
+        db.query(Product)
+        .filter(Product.id == product_id)
+        .first()
     )
+
+    if product is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Product not found"
+        )
+
+    update = product_update.model_dump(exclude_unset=True)
+
+    for field, value in update.items():
+        setattr(product, field, value)
+
+    db.commit()
+    db.refresh(product)
+
+    return product
 
 @app.delete("/products/{product_id}")
-def remove_product(product_id: int):
-    for product in products:
-        if product["id"] == product_id:
-            products.remove(product)
-            return {"message": "Product deleted"}
+def remove_product(
+    product_id: int,
+    db: Session = Depends(get_db)):
 
-    raise HTTPException(
-        status_code=404,
-        detail="Product not found"
+    product = (
+        db.query(Product)
+        .filter(Product.id == product_id)
+        .first()
     )
+
+    if product is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Product not found"
+        )
+
+    db.delete(product)
+    db.commit()
+
+    return {"message": "Product deleted"}
 
 
 def get_stock_status(stock: int, minimum_stock: int) -> str:
