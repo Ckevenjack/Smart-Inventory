@@ -141,11 +141,6 @@ def create_product(
     product: ProductCreate,
     db: Session = Depends(get_db)):
 
-    if products:
-        new_id = max(product["id"] for product in products) + 1
-    else:
-        new_id = 1
-
     new_product = Product(
         name=product.name,
         category=product.category,
@@ -208,14 +203,3 @@ def remove_product(
     db.commit()
 
     return {"message": "Product deleted"}
-
-
-def get_stock_status(stock: int, minimum_stock: int) -> str:
-    if stock == 0:
-        status = "OUT OF STOCK"
-    elif stock <= minimum_stock:
-        status = "LOW STOCK"
-    else:
-        status = "IN STOCK"
-
-    return status
