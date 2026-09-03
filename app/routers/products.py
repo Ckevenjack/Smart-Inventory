@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 from sqlalchemy.orm import Session
 
-from app.schemas.product import ProductCreate, ProductUpdate
+from app.schemas.product import ProductCreate, ProductUpdate, ProductResponse, MessageResponse
 
 from app.database import get_db
 from app.models.product import Product
@@ -10,32 +10,32 @@ from app.services import product_service
 
 router = APIRouter()
 
-@router.get("/products")
+@router.get("/products", response_model=list[ProductResponse])
 def get_products(db: Session = Depends(get_db)):
     return product_service.get_products(db)
 
-@router.get("/products/low-stock")
+@router.get("/products/low-stock", response_model=list[ProductResponse])
 def get_low_stock_products(db: Session = Depends(get_db)):
     return product_service.get_low_stock_products(db)
 
-@router.get("/products/out-of-stock")
+@router.get("/products/out-of-stock", response_model=list[ProductResponse])
 def get_out_of_stock(db: Session = Depends(get_db)):
     return product_service.get_out_of_stock(db)
 
-@router.get("/products/search")
+@router.get("/products/search", response_model=list[ProductResponse])
 def search_products(
     name: str,
     db: Session = Depends(get_db)):
     return product_service.search_products(db, name)
 
-@router.get("/products/category")
+@router.get("/products/category", response_model=list[ProductResponse])
 def filter_by_category(
     category: str,
     db: Session = Depends(get_db)):
 
     return product_service.filter_by_category(db, category)
 
-@router.get("/products/{product_id}")
+@router.get("/products/{product_id}", response_model=ProductResponse)
 def get_product_by_id(
     product_id: int,
     db: Session = Depends(get_db)):
@@ -50,7 +50,7 @@ def get_product_by_id(
 
     return product
 
-@router.post("/products", status_code=status.HTTP_201_CREATED)
+@router.post("/products", status_code=status.HTTP_201_CREATED, response_model=ProductResponse)
 def create_product(
     product: ProductCreate,
     db: Session = Depends(get_db)):
@@ -59,7 +59,7 @@ def create_product(
 
     return new_product
 
-@router.patch("/products/{product_id}")
+@router.patch("/products/{product_id}", response_model=ProductResponse)
 def update_product(
     product_id: int,
     product_update: ProductUpdate,
@@ -75,7 +75,7 @@ def update_product(
 
     return product
 
-@router.delete("/products/{product_id}")
+@router.delete("/products/{product_id}", response_model=MessageResponse)
 def remove_product(
     product_id: int,
     db: Session = Depends(get_db)):
