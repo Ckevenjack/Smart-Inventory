@@ -5,7 +5,7 @@ from sqlalchemy import pool
 
 from alembic import context
 
-from app.database import Base, DATABASE_URL
+from app.database import Base
 from dotenv import load_dotenv
 import os
 from app.models.product import Product
@@ -20,7 +20,7 @@ config = context.config
 if os.getenv("USE_TEST_DB") == "true":
     database_url = os.getenv("TEST_DATABASE_URL")
 else:
-    database_url = DATABASE_URL
+    database_url = os.getenv("DATABASE_URL")
 
 config.set_main_option("sqlalchemy.url", database_url)
 
