@@ -11,6 +11,10 @@ from app.main import app
 from app.models.product import Product
 
 
+# --------------------------------------------------
+# DATABASE
+# --------------------------------------------------
+
 load_dotenv()
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")
@@ -21,6 +25,10 @@ TestSessionLocal = sessionmaker(
     bind=test_engine
 )
 
+
+# --------------------------------------------------
+# FASTAPI TEST DATABASE
+# --------------------------------------------------
 
 def get_test_db():
     db = TestSessionLocal()
@@ -36,19 +44,21 @@ app.dependency_overrides[get_db] = get_test_db
 client = TestClient(app)
 
 
+# --------------------------------------------------
+# FIXTURE
+# --------------------------------------------------
+
 @pytest.fixture
 def db():
     db = TestSessionLocal()
 
-    print("Setup")
-
+    # Clean database before test
     db.query(Product).delete()
     db.commit()
 
     yield db
 
-    print("Cleanup")
-
+    # Clean database after test
     db.query(Product).delete()
     db.commit()
 
@@ -90,12 +100,12 @@ def test_create_product(db):
 
     data = response.json()
 
+    assert data["id"] is not None
     assert data["name"] == "Keyboard"
     assert data["category"] == "Tech"
     assert data["price"] == 15
     assert data["stock"] == 7
     assert data["minimum_stock"] == 2
-    assert "id" in data
 
 
 def test_create_product_invalid_price(db):
@@ -249,6 +259,7 @@ def test_update_product(db):
 
     assert data["id"] == product.id
     assert data["name"] == "Keyboard"
+    assert data["category"] == "Tech"
     assert data["price"] == 20
     assert data["stock"] == 10
     assert data["minimum_stock"] == 2
@@ -317,16 +328,13 @@ def test_delete_product(db):
     )
 
     assert response.status_code == 200
-
     assert response.json() == {
         "message": "Product deleted"
     }
 
-    deleted_product = (
-        db.query(Product)
-        .filter(Product.id == product.id)
-        .first()
-    )
+    deleted_product = db.query(Product).filter(
+        Product.id == product.id
+    ).first()
 
     assert deleted_product is None
 
@@ -335,14 +343,13 @@ def test_delete_product_not_found(db):
     response = client.delete("/products/999")
 
     assert response.status_code == 404
-
     assert response.json() == {
         "detail": "Product not found"
     }
 
 
 # --------------------------------------------------
-# LOW STOCK
+# STOCK
 # --------------------------------------------------
 
 def test_get_low_stock_products(db):
@@ -351,15 +358,13 @@ def test_get_low_stock_products(db):
         category="Tech",
         price=15,
         stock=2,
-        minimum_stock=5
+        minimum_stock=2
     )
 
     db.add(product)
     db.commit()
 
-    response = client.get(
-        "/products/low-stock"
-    )
+    response = client.get("/products/low-stock")
 
     assert response.status_code == 200
 
@@ -368,11 +373,8 @@ def test_get_low_stock_products(db):
     assert len(data) == 1
     assert data[0]["name"] == "Keyboard"
     assert data[0]["stock"] == 2
+    assert data[0]["minimum_stock"] == 2
 
-
-# --------------------------------------------------
-# OUT OF STOCK
-# --------------------------------------------------
 
 def test_get_out_of_stock(db):
     product = Product(
@@ -380,15 +382,13 @@ def test_get_out_of_stock(db):
         category="Tech",
         price=15,
         stock=0,
-        minimum_stock=5
+        minimum_stock=2
     )
 
     db.add(product)
     db.commit()
 
-    response = client.get(
-        "/products/out-of-stock"
-    )
+    response = client.get("/products/out-of-stock")
 
     assert response.status_code == 200
 
@@ -405,9 +405,9 @@ def test_get_out_of_stock(db):
 
 def test_search_products(db):
     product = Product(
-        name="Gaming Keyboard",
+        name="Wireless Keyboard",
         category="Tech",
-        price=50,
+        price=25,
         stock=10,
         minimum_stock=2
     )
@@ -416,7 +416,7 @@ def test_search_products(db):
     db.commit()
 
     response = client.get(
-        "/products/search?name=Gaming"
+        "/products/search?name=keyboard"
     )
 
     assert response.status_code == 200
@@ -424,7 +424,7 @@ def test_search_products(db):
     data = response.json()
 
     assert len(data) == 1
-    assert data[0]["name"] == "Gaming Keyboard"
+    assert data[0]["name"] == "Wireless Keyboard"
 
 
 # --------------------------------------------------
@@ -452,6 +452,7 @@ def test_filter_products_by_category(db):
     data = response.json()
 
     assert len(data) == 1
+    assert data[0]["name"] == "Keyboard"
     assert data[0]["category"] == "Tech"
 
 
@@ -473,7 +474,7 @@ def test_get_stats(db):
             category="Tech",
             price=5,
             stock=2,
-            minimum_stock=5
+            minimum_stock=2
         ),
         Product(
             name="Monitor",
