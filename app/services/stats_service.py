@@ -1,31 +1,41 @@
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
 from app.models.product import Product
 
+
 def get_stats(db: Session):
+    # Total number of products
+    total_products = db.scalar(
+        select(func.count()).select_from(Product)
+    )
 
-    total_products = db.query(Product).count()
-
-    low_stock = (
-        db.query(Product)
-        .filter(
+    # Number of low-stock products
+    low_stock = db.scalar(
+        select(func.count())
+        .select_from(Product)
+        .where(
             Product.stock > 0,
             Product.stock <= Product.minimum_stock
         )
-        .count()
     )
 
-    out_of_stock = (
-        db.query(Product)
-        .filter(Product.stock == 0)
-        .count()
+    # Number of out-of-stock products
+    out_of_stock = db.scalar(
+        select(func.count())
+        .select_from(Product)
+        .where(Product.stock == 0)
     )
 
-    inventory_value = 0
-
-    products = db.query(Product).all()
-    for product in products:
-        inventory_value += product.price * product.stock
+    # Total inventory value
+    inventory_value = db.scalar(
+        select(
+            func.coalesce(
+                func.sum(Product.price * Product.stock),
+                0
+            )
+        )
+    )
 
     return {
         "total_products": total_products,
